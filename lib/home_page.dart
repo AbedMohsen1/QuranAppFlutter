@@ -215,6 +215,8 @@ class _QuranHomePageState extends State<QuranHomePage> {
     );
   }
 
+  // test app in github
+  // abd
   Widget _buildCard(String title, String content, String subText) {
     return Card(
       color: Colors.green.shade50,
