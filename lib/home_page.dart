@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:hijri/hijri_calendar.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class QuranHomePage extends StatefulWidget {
   const QuranHomePage({super.key});
@@ -38,7 +40,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
     timer = Timer.periodic(const Duration(seconds: 1), (_) => updateTimeOnly());
 
     _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-4905760497560017/5020270616',
+      adUnitId: 'ca-app-pub-4905760497560017/8482351944',
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
@@ -46,19 +48,6 @@ class _QuranHomePageState extends State<QuranHomePage> {
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
           print('فشل تحميل الإعلان السفلي: $error');
-        },
-      ),
-    )..load();
-
-    _bannerAdTop = BannerAd(
-      adUnitId: 'ca-app-pub-4905760497560017/9174303891',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (Ad ad) => setState(() {}),
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          print('فشل تحميل الإعلان العلوي: $error');
         },
       ),
     )..load();
@@ -72,7 +61,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
       bool isReading = prefs.getBool('isReadingSurah') ?? false;
       if (!isReading) {
         InterstitialAd.load(
-          adUnitId: 'ca-app-pub-4905760497560017/9478390370',
+          adUnitId: 'ca-app-pub-4905760497560017/6793865755',
           request: const AdRequest(),
           adLoadCallback: InterstitialAdLoadCallback(
             onAdLoaded: (InterstitialAd ad) {
@@ -132,20 +121,20 @@ class _QuranHomePageState extends State<QuranHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("القرآن الكريم"), centerTitle: true),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text("القرآن الكريم"),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+      ),
       body: ayaList.isEmpty || hadithList.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                if (_bannerAdTop != null)
-                  Container(
-                    width: double.infinity,
-                    height: _bannerAdTop!.size.height.toDouble(),
-                    child: AdWidget(ad: _bannerAdTop!),
-                  ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(15),
                     child: Column(
                       children: [
                         Text(
@@ -169,9 +158,9 @@ class _QuranHomePageState extends State<QuranHomePage> {
                           todayAya?['text'],
                           'سورة ${todayAya?['surah']} - آية ${todayAya?['ayah']}',
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 10),
                         _buildCard("حديث اليوم", todayHadith ?? '', ''),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 10),
                         Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
@@ -200,12 +189,38 @@ class _QuranHomePageState extends State<QuranHomePage> {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              icon: FaIcon(
+                                FontAwesomeIcons.whatsapp,
+                                size: 30,
+                                color: Colors.green,
+                              ),
+                              onPressed: () =>
+                                  _launchURL('https://wa.me/970598063779'),
+                            ),
+                            const SizedBox(width: 20),
+                            IconButton(
+                              icon: FaIcon(
+                                FontAwesomeIcons.facebook,
+                                size: 30,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () => _launchURL(
+                                'https://www.facebook.com/share/1AmMZwFifb/',
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ),
                 if (_bannerAd != null)
-                  Container(
+                  SizedBox(
                     width: double.infinity,
                     height: _bannerAd!.size.height.toDouble(),
                     child: AdWidget(ad: _bannerAd!),
@@ -215,8 +230,14 @@ class _QuranHomePageState extends State<QuranHomePage> {
     );
   }
 
-  // test app in github
-  // abd
+  _launchURL(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      throw 'لا يمكن فتح الرابط $url';
+    }
+  }
+
   Widget _buildCard(String title, String content, String subText) {
     return Card(
       color: Colors.green.shade50,

@@ -4,6 +4,8 @@ import 'package:quran/quran.dart' as quran;
 import 'package:quran_app/surah_detail_page.dart';
 
 class SurahIndexPage extends StatefulWidget {
+  const SurahIndexPage({super.key});
+
   @override
   State<SurahIndexPage> createState() => _SurahIndexPageState();
 }
@@ -34,6 +36,7 @@ class _SurahIndexPageState extends State<SurahIndexPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         centerTitle: true,
         title: const Text('فهرس السور', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,

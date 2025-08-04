@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:quran_app/home_page.dart';
+import 'package:quran_app/splash_gaza.dart';
 import 'package:quran_app/surah_index_page.dart';
 
 void main() async {
@@ -21,6 +22,11 @@ class QuranApp extends StatelessWidget {
       title: 'القرآن الكريم',
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
+      initialRoute: '/SplashGazaScreen',
+      routes: {
+        '/SplashGazaScreen': (context) => const SplashGazaScreen(),
+        '/QuranHomePage': (context) => const QuranHomePage(),
+      },
     );
   }
 }
@@ -40,12 +46,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(child: screens[selectedIndex]),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: selectedIndex,
         onTap: (index) => setState(() => selectedIndex = index),
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),

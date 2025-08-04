@@ -2,7 +2,7 @@ name: quran_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: ^3.8.1
@@ -18,6 +18,8 @@ dependencies:
   google_mobile_ads: ^6.0.0
   icons_launcher: ^2.1.3
   rename: ^3.1.0
+  font_awesome_flutter: ^10.8.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
