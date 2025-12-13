@@ -2,6 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:quran_app/favorites_service.dart';
+import 'package:quran_app/reading_progress_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -120,12 +122,19 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
   Future<void> _toggleVerseSelection(int verse) async {
     final prefs = await SharedPreferences.getInstance();
     final key = 'selected_verse_${widget.surahNumber}';
+
     if (selectedVerse == verse) {
       await prefs.remove(key);
       setState(() => selectedVerse = null);
     } else {
       await prefs.setInt(key, verse);
       setState(() => selectedVerse = verse);
+
+      // ✅ حفظ تقدم الختمة
+      await ReadingProgressService.saveProgress(
+        surah: widget.surahNumber,
+        verse: verse,
+      );
     }
   }
 
@@ -190,8 +199,61 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
   }
 
   // ================== BottomSheet على الآية ==================
-  void _showAyahActions(int verse, String verseText) {
+  Future<void> _showAyahActions(int verse, String verseText) async {
     final isSaved = selectedVerse == verse;
+    final surahName = quran.getSurahNameArabic(widget.surahNumber);
+
+    final favItem = await FavoritesService.getItem(widget.surahNumber, verse);
+    final isFav = favItem != null;
+    final note = favItem?.note;
+
+    if (!mounted) return;
+
+    void openNoteDialog() async {
+      final controller = TextEditingController(text: note ?? '');
+      final result = await showDialog<String?>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('ملاحظة على: $surahName • آية $verse'),
+          content: TextField(
+            controller: controller,
+            maxLines: 4,
+            textAlign: TextAlign.right,
+            decoration: const InputDecoration(
+              hintText: 'اكتب ملاحظتك… (سيتم حفظ الآية في المفضلة)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == null) return;
+
+      // الملاحظة = إضافة/تحديث في المفضلة
+      await FavoritesService.addOrUpdate(
+        surah: widget.surahNumber,
+        verse: verse,
+        surahName: surahName,
+        verseText: verseText,
+        note: result,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حفظ الملاحظة في المفضلة')),
+        );
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -209,7 +271,6 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
               onTap: () async {
                 Navigator.pop(context);
                 await _playAyah(widget.surahNumber, verse);
-                // الخروج من وضع السورة إن كان مفعّل
                 if (_isSurahMode) {
                   setState(() {
                     _isSurahMode = false;
@@ -224,7 +285,7 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
               subtitle: Text('من الآية رقم $verse حتى نهاية السورة'),
               onTap: () async {
                 Navigator.pop(context);
-                await _playSurahFrom(verse); // تشغيل السورة كاملة من هذه الآية
+                await _playSurahFrom(verse);
               },
             ),
             ListTile(
@@ -237,6 +298,50 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
                 Navigator.pop(context);
               },
             ),
+
+            const Divider(),
+
+            ListTile(
+              leading: Icon(isFav ? Icons.favorite : Icons.favorite_border),
+              title: Text(isFav ? 'إزالة من المفضلة' : 'إضافة للمفضلة'),
+              subtitle: (note != null && note.trim().isNotEmpty)
+                  ? Text('ملاحظة: $note')
+                  : null,
+              onTap: () async {
+                Navigator.pop(context);
+                if (isFav) {
+                  await FavoritesService.remove(widget.surahNumber, verse);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تمت الإزالة من المفضلة')),
+                    );
+                  }
+                } else {
+                  await FavoritesService.addOrUpdate(
+                    surah: widget.surahNumber,
+                    verse: verse,
+                    surahName: surahName,
+                    verseText: verseText,
+                    note: note,
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تمت الإضافة للمفضلة')),
+                    );
+                  }
+                }
+              },
+            ),
+
+            ListTile(
+              leading: const Icon(Icons.edit_note),
+              title: const Text('إضافة/تعديل ملاحظة'),
+              onTap: () {
+                Navigator.pop(context);
+                openNoteDialog();
+              },
+            ),
+
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('نسخ نص الآية'),
@@ -440,8 +545,9 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
                                   text: '$verseText ﴿$verse﴾',
                                   style: style,
                                   recognizer: TapGestureRecognizer()
-                                    ..onTap = () =>
-                                        _showAyahActions(verse, verseText),
+                                    ..onTap = () {
+                                      _showAyahActions(verse, verseText);
+                                    },
                                 );
 
                                 // إن كانت الآية تعمل الآن، أضف أيقونة صغيرة بعد الرقم

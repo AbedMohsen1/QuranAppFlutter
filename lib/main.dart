@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 import 'package:quran_app/home_page.dart';
+import 'package:quran_app/favorites_page.dart';
 import 'package:quran_app/splash_gaza.dart';
 import 'package:quran_app/surah_index_page.dart';
 
@@ -79,7 +80,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int selectedIndex = 0;
 
-  final List<Widget> screens = const [QuranHomePage(), SurahIndexPage()];
+  final List<Widget> screens = const [
+    QuranHomePage(),
+    SurahIndexPage(),
+    FavoritesPage(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'الصفحة الرئيسية',
           ),
           BottomNavigationBarItem(icon: Icon(Icons.list), label: 'الفهرس'),
+          BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'المفضلة'),
         ],
       ),
     );
