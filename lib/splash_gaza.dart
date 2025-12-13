@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quran_app/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashGazaScreen extends StatefulWidget {
   const SplashGazaScreen({super.key});
@@ -10,26 +11,61 @@ class SplashGazaScreen extends StatefulWidget {
 }
 
 class _SplashGazaScreenState extends State<SplashGazaScreen> {
-  int secondsLeft = 15;
+  int secondsLeft = 10;
   Timer? countdownTimer;
+
+  static const _prefsKey = 'gaza_splash_last_shown'; // مفتاح التخزين
 
   @override
   void initState() {
     super.initState();
-    // تشغيل العداد التنازلي
-    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _decideFlow();
+  }
+
+  // مفتاح اليوم (سنة-شهر-يوم) بدون حزم إضافية
+  String _todayKey() {
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${now.year}-${two(now.month)}-${two(now.day)}';
+  }
+
+  Future<void> _decideFlow() async {
+    final prefs = await SharedPreferences.getInstance();
+    final last = prefs.getString(_prefsKey);
+    final today = _todayKey();
+
+    if (last == today) {
+      // انعرضت اليوم بالفعل → ادخل مباشرة
+      _goHome();
+    } else {
+      // أول مرة اليوم → اعرض مع العداد، وبعد الانتقال خزّن تاريخ اليوم
+      _startCountdown(
+        onFinish: () async {
+          await prefs.setString(_prefsKey, today);
+          _goHome();
+        },
+      );
+    }
+  }
+
+  void _startCountdown({required Future<void> Function() onFinish}) {
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) return;
       if (secondsLeft > 1) {
-        setState(() {
-          secondsLeft--;
-        });
+        setState(() => secondsLeft--);
       } else {
         timer.cancel();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
-        );
+        await onFinish();
       }
     });
+  }
+
+  void _goHome() {
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+    );
   }
 
   @override
