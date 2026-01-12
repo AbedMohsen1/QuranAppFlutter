@@ -25,6 +25,8 @@ class SurahDetailPage extends StatefulWidget {
 }
 
 class _SurahDetailPageState extends State<SurahDetailPage> {
+  late int _currentSurah;
+
   int? selectedVerse; // الآية المحفوظة/المعلَّمة
   BannerAd? _bannerAd; // بانر تكيفي
 
@@ -53,26 +55,39 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
     _saveLastVisitedSurah();
     _markReadingStatus(true);
     _loadAdaptiveBannerAfterLayout();
-
+    _currentSurah = widget.surahNumber;
     // عند انتهاء المقطع
     _player.onPlayerComplete.listen((_) async {
       if (!mounted) return;
-      if (_isSurahMode) {
-        final max = quran.getVerseCount(widget.surahNumber);
-        final next = (_currentVerseInSurah ?? 0) + 1;
-        if (next <= max) {
-          _currentVerseInSurah = next;
-          await _playAyah(widget.surahNumber, next);
+      if (!_isSurahMode) return;
+
+      final maxVerse = quran.getVerseCount(_currentSurah);
+      final nextVerse = (_currentVerseInSurah ?? 0) + 1;
+
+      if (nextVerse <= maxVerse) {
+        // نفس السورة
+        _currentVerseInSurah = nextVerse;
+        await _playAyah(_currentSurah, nextVerse);
+      } else {
+        // 🔥 انتقل للسورة التالية
+        final nextSurah = _currentSurah + 1;
+
+        if (nextSurah <= quran.totalSurahCount) {
+          setState(() {
+            _currentSurah = nextSurah;
+            _currentVerseInSurah = 1;
+          });
+
+          await _playAyah(_currentSurah, 1);
         } else {
+          // انتهى القرآن
           await _stopSurah();
           if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('انتهت تلاوة السورة')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('انتهت تلاوة القرآن الكريم')),
+            );
           }
         }
-      } else {
-        setState(() => _playingVerse = null);
       }
     });
 
@@ -130,7 +145,6 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
       await prefs.setInt(key, verse);
       setState(() => selectedVerse = verse);
 
-      // ✅ حفظ تقدم الختمة
       await ReadingProgressService.saveProgress(
         surah: widget.surahNumber,
         verse: verse,
@@ -270,7 +284,7 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
               subtitle: Text('الآية رقم $verse'),
               onTap: () async {
                 Navigator.pop(context);
-                await _playAyah(widget.surahNumber, verse);
+                await _playAyah(_currentSurah, verse);
                 if (_isSurahMode) {
                   setState(() {
                     _isSurahMode = false;
@@ -363,6 +377,9 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
   }
 
   // ================== إعلان بانر تكيفي ==================
+  // ignore: unused_field
+  bool _isBannerLoaded = false;
+
   void _loadAdaptiveBannerAfterLayout() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!_isMobile) return; // <-- جديد: لا تعمل على Windows/Web
@@ -377,14 +394,18 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
 
       _bannerAd = BannerAd(
         adUnitId:
-            'ca-app-pub-5228897328353749/9043570244', // SurahDetail Banner
+            'ca-app-pub-5228897328353749/6332806101', // SurahDetail Banner
+        // adUnitId: 'ca-app-pub-3940256099942544/2435281174',
         size: adaptiveSize,
         request: const AdRequest(),
         listener: BannerAdListener(
-          onAdLoaded: (_) => setState(() {}),
+          onAdLoaded: (_) {
+            if (!mounted) return;
+            setState(() => _isBannerLoaded = true);
+          },
           onAdFailedToLoad: (ad, error) {
             ad.dispose();
-            debugPrint('فشل تحميل إعلان البانر: $error');
+            debugPrint('❌ Banner failed: ${error.code} - ${error.message}');
           },
         ),
       )..load();
@@ -444,6 +465,14 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
           ),
         ],
       ),
+      bottomNavigationBar: (_isBannerLoaded && _bannerAd != null)
+          ? SafeArea(
+              child: SizedBox(
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            )
+          : null,
       body: Stack(
         children: [
           // خلفية
@@ -463,11 +492,6 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
                 child: Directionality(
                   textDirection: TextDirection.rtl,
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.only(
-                      bottom: _bannerAd != null
-                          ? _bannerAd!.size.height.toDouble() + 25
-                          : 0,
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -648,19 +672,6 @@ class _SurahDetailPageState extends State<SurahDetailPage> {
               ),
             ),
           ),
-
-          // بانر ثابت في الأسفل
-          if (_bannerAd != null)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: SafeArea(
-                child: SizedBox(
-                  width: double.infinity,
-                  height: _bannerAd!.size.height.toDouble(),
-                  child: AdWidget(ad: _bannerAd!),
-                ),
-              ),
-            ),
         ],
       ),
     );

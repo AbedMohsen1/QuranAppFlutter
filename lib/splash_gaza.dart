@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:quran_app/main.dart';
+import 'package:quran_app/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashGazaScreen extends StatefulWidget {
@@ -14,7 +14,14 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
   int secondsLeft = 10;
   Timer? countdownTimer;
 
-  static const _prefsKey = 'gaza_splash_last_shown'; // مفتاح التخزين
+  static const String _prefsKey = 'gaza_splash_last_shown';
+
+  static const String _duaText =
+      "اللهم يا قوي يا عزيز، كن لأهل غزة سندًا ونصيرًا، "
+      "اللهم احفظهم بحفظك واكفهم شر الأعداء، "
+      "اللهم اربط على قلوبهم وثبت أقدامهم وانصرهم على من عاداهم، "
+      "وارفع عنهم البلاء والشدائد، وارحم شهداءهم واشف جرحاهم وفك أسرهم، "
+      "وأبدل خوفهم أمنًا وحزنهم فرحًا، يا أرحم الراحمين.";
 
   @override
   void initState() {
@@ -22,7 +29,7 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
     _decideFlow();
   }
 
-  // مفتاح اليوم (سنة-شهر-يوم) بدون حزم إضافية
+  // مفتاح اليوم (YYYY-MM-DD)
   String _todayKey() {
     final now = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
@@ -30,15 +37,15 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
   }
 
   Future<void> _decideFlow() async {
+    countdownTimer?.cancel();
+
     final prefs = await SharedPreferences.getInstance();
-    final last = prefs.getString(_prefsKey);
+    final lastShown = prefs.getString(_prefsKey);
     final today = _todayKey();
 
-    if (last == today) {
-      // انعرضت اليوم بالفعل → ادخل مباشرة
+    if (lastShown == today) {
       _goHome();
     } else {
-      // أول مرة اليوم → اعرض مع العداد، وبعد الانتقال خزّن تاريخ اليوم
       _startCountdown(
         onFinish: () async {
           await prefs.setString(_prefsKey, today);
@@ -51,6 +58,7 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
   void _startCountdown({required Future<void> Function() onFinish}) {
     countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (!mounted) return;
+
       if (secondsLeft > 1) {
         setState(() => secondsLeft--);
       } else {
@@ -64,8 +72,15 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    // تحميل الصورة مسبقًا لتجربة أنعم
+    precacheImage(const AssetImage("assets/img/gaza_dua.webp"), context);
+    super.didChangeDependencies();
   }
 
   @override
@@ -80,12 +95,12 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
       backgroundColor: Colors.black,
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                "دعاء لأهلنا في غزة ",
+                "دعاء لأهلنا في غزة",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
@@ -94,26 +109,34 @@ class _SplashGazaScreenState extends State<SplashGazaScreen> {
                   height: 1.7,
                 ),
               ),
+              const SizedBox(height: 12),
               Image.asset("assets/img/gaza_dua.png", height: 110),
               const SizedBox(height: 20),
               const Text(
-                "اللهم يا قوي يا عزيز، كن لأهل غزة سندًا ونصيرًا، اللهم احفظهم بحفظك واكفهم شر الأعداء، اللهم اربط على قلوبهم وثبت أقدامهم وانصرهم على من عاداهم، وارفع عنهم البلاء والشدائد، وارحم شهداءهم واشف جرحاهم وفك أسرهم، وأبدل خوفهم أمنًا وحزنهم فرحًا، يا أرحم الراحمين.",
+                _duaText,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   height: 1.7,
                 ),
               ),
               const SizedBox(height: 40),
-              // عداد تنازلي واضح
               Text(
                 "الانتقال خلال $secondsLeft ثانية",
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 18,
                   color: Colors.white70,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _goHome,
+                child: const Text(
+                  'تخطي',
+                  style: TextStyle(color: Colors.white70),
                 ),
               ),
             ],

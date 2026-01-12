@@ -2,7 +2,7 @@ name: quran_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+7
+version: 1.0.0+11
 
 environment:
   sdk: ^3.8.1
@@ -21,8 +21,6 @@ dependencies:
   font_awesome_flutter: ^10.8.0
   url_launcher: ^6.3.2
   audioplayers: ^6.5.0
-  flutter_qiblah: ^3.1.0+1
-  geolocator: ^13.0.4
 
 dev_dependencies:
   flutter_test:
@@ -37,14 +35,14 @@ flutter:
     - assets/json/aya.json
     - assets/json/hadith.json
     - assets/json/
-
+    - assets/fonts/
   fonts:
-      - family: Uthman
+      - family: AmiriQuran
         fonts:
-          - asset: assets/fonts/alfont_com_UthmanTN1-Ver10.otf
+          - asset: assets/fonts/AmiriQuran-Regular.ttf
 
 icons_launcher:
-  image_path: 'assets/img/playstore.png'
+  image_path: 'assets/img/playstore.webp'
   platforms:
     android: true
     enable: true

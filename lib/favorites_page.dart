@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:quran/quran.dart' as quran;
 import 'package:quran_app/favorites_service.dart';
 import 'package:quran_app/reading_progress_service.dart';
@@ -17,26 +18,55 @@ class _FavoritesPageState extends State<FavoritesPage> {
   List<FavItem> _items = [];
   List<FavItem> _filtered = [];
 
+  BannerAd? _bannerAd;
+  bool _isBannerLoaded = false;
+  bool _loading = true;
+
   @override
   void initState() {
     super.initState();
     _load();
     _search.addListener(_applyFilter);
+    _loadBanner();
+  }
+
+  void _loadBanner() {
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-5228897328353749/5131405070',
+
+      // adUnitId: 'ca-app-pub-3940256099942544/2435281174',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() => _isBannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+        },
+      ),
+    )..load();
   }
 
   @override
   void dispose() {
+    _bannerAd?.dispose();
     _search.removeListener(_applyFilter);
     _search.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    setState(() => _loading = true);
+
     final items = await FavoritesService.getAll();
     if (!mounted) return;
+
     setState(() {
       _items = items;
       _filtered = items;
+      _loading = false;
     });
   }
 
@@ -60,23 +90,29 @@ class _FavoritesPageState extends State<FavoritesPage> {
   Future<void> _openFav(FavItem item) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // خليها تضل مميزة داخل صفحة السورة (نفس مفتاحك الحالي)
     await prefs.setInt('selected_verse_${item.surah}', item.verse);
 
-    // حدّث تقدم الختمة
     await ReadingProgressService.saveProgress(
       surah: item.surah,
       verse: item.verse,
     );
 
     if (!mounted) return;
-    await Navigator.push(
+    final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) =>
             SurahDetailPage(surahNumber: item.surah, fromNavigationBar: false),
       ),
     );
+
+    // 🔥 إذا صار تغيير بالمفضلة
+    if (changed == true) {
+      await _load(); // يحدث القائمة فورًا
+    }
+
+    // ✅ تحديث المفضلة مباشرة بعد الرجوع
+    await _load();
   }
 
   Future<void> _editNote(FavItem item) async {
@@ -138,6 +174,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   @override
   Widget build(BuildContext context) {
+    setState(() {});
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -147,97 +184,124 @@ class _FavoritesPageState extends State<FavoritesPage> {
           centerTitle: true,
           title: const Text('المفضلة'),
           backgroundColor: Colors.white,
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: TextField(
-                controller: _search,
-                textAlign: TextAlign.right,
-                decoration: InputDecoration(
-                  hintText: 'ابحث (سورة/آية/نص/ملاحظة)…',
-                  prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.grey.shade100,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: _filtered.isEmpty
-                  ? const Center(child: Text('لا توجد عناصر في المفضلة بعد.'))
-                  : ListView.builder(
-                      itemCount: _filtered.length,
-                      itemBuilder: (context, i) {
-                        final item = _filtered[i];
-                        final title = item.surahName.isNotEmpty
-                            ? item.surahName
-                            : quran.getSurahNameArabic(item.surah);
-
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: ListTile(
-                            onTap: () => _openFav(item),
-                            title: Text(
-                              '$title • آية ${item.verse}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 6),
-                                Text(
-                                  item.verseText,
-                                  textAlign: TextAlign.right,
-                                ),
-                                if ((item.note ?? '').isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      '📝 ${item.note}',
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            trailing: Wrap(
-                              spacing: 6,
-                              children: [
-                                IconButton(
-                                  tooltip: 'تعديل الملاحظة',
-                                  icon: const Icon(Icons.edit_note),
-                                  onPressed: () => _editNote(item),
-                                ),
-                                IconButton(
-                                  tooltip: 'حذف',
-                                  icon: const Icon(Icons.delete_outline),
-                                  onPressed: () => _deleteFav(item),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+          actions: [
+            IconButton(
+              tooltip: 'تحديث',
+              icon: const Icon(Icons.refresh),
+              onPressed: () async {
+                await _load(); // 🔥 تحديث الشاشة
+              },
             ),
           ],
         ),
+
+        // 🔥 البانر هنا (أفضل مكان)
+        bottomNavigationBar: (_isBannerLoaded && _bannerAd != null)
+            ? SafeArea(
+                child: SizedBox(
+                  height: _bannerAd!.size.height.toDouble(),
+                  child: AdWidget(ad: _bannerAd!),
+                ),
+              )
+            : null,
+
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                    child: TextField(
+                      controller: _search,
+                      textAlign: TextAlign.right,
+                      decoration: InputDecoration(
+                        hintText: 'ابحث (سورة/آية/نص/ملاحظة)…',
+                        prefixIcon: const Icon(Icons.search),
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _filtered.isEmpty
+                        ? const Center(
+                            child: Text('لا توجد عناصر في المفضلة بعد.'),
+                          )
+                        : ListView.builder(
+                            itemCount: _filtered.length,
+                            itemBuilder: (context, i) {
+                              final item = _filtered[i];
+                              final title = item.surahName.isNotEmpty
+                                  ? item.surahName
+                                  : quran.getSurahNameArabic(item.surah);
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                child: ListTile(
+                                  onTap: () => _openFav(item),
+                                  title: Text(
+                                    '$title • آية ${item.verse}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        item.verseText,
+                                        textAlign: TextAlign.right,
+                                      ),
+                                      if ((item.note ?? '').isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.shade50,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '📝 ${item.note}',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  trailing: Wrap(
+                                    spacing: 6,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_note),
+                                        onPressed: () => _editNote(item),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline),
+                                        onPressed: () => _deleteFav(item),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
       ),
     );
   }

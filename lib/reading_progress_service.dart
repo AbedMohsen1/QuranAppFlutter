@@ -1,6 +1,9 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quran/quran.dart' as quran;
 
+/// =======================
+/// Model
+/// =======================
 class ReadingStatus {
   final int goalDays;
   final DateTime startDate;
@@ -9,7 +12,7 @@ class ReadingStatus {
   final int lastGlobalIndex;
   final int todayRead;
   final int dailyTarget;
-  final double percent;
+  final double percent; // 0.0 → 1.0
 
   const ReadingStatus({
     required this.goalDays,
@@ -23,7 +26,11 @@ class ReadingStatus {
   });
 }
 
+/// =======================
+/// Service
+/// =======================
 class ReadingProgressService {
+  // Storage keys
   static const _kGoalDays = 'khatma_goal_days';
   static const _kStartDate = 'khatma_start_date';
   static const _kLastSurah = 'khatma_last_surah';
@@ -39,11 +46,35 @@ class ReadingProgressService {
 
   static const int totalAyat = 6236;
 
+  /// =======================
+  /// Helpers
+  /// =======================
   static String _dateKey(DateTime dt) =>
-      '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      '${dt.year.toString().padLeft(4, '0')}-'
+      '${dt.month.toString().padLeft(2, '0')}-'
+      '${dt.day.toString().padLeft(2, '0')}';
 
-  static Future<void> ensureInitialized() async {
+  static int _globalAyahIndex(int surah, int verse) {
+    int sum = 0;
+    for (int s = 1; s < surah; s++) {
+      sum += quran.getVerseCount(s);
+    }
+    return sum + verse;
+  }
+
+  static int _dailyTarget(int goalDays) {
+    final d = goalDays.clamp(1, 365);
+    final t = (totalAyat / d).ceil();
+    return t < 1 ? 1 : t;
+  }
+
+  static Future<SharedPreferences> _prefs() async {
     final p = await SharedPreferences.getInstance();
+    await _ensureInitialized(p);
+    return p;
+  }
+
+  static Future<void> _ensureInitialized(SharedPreferences p) async {
     p.setInt(_kGoalDays, p.getInt(_kGoalDays) ?? 30);
     p.setString(
       _kStartDate,
@@ -60,42 +91,32 @@ class ReadingProgressService {
     p.setString(_kReminderLastShown, p.getString(_kReminderLastShown) ?? '');
   }
 
-  static int _globalAyahIndex(int surah, int verse) {
-    int sum = 0;
-    for (int s = 1; s < surah; s++) {
-      sum += quran.getVerseCount(s);
-    }
-    return sum + verse;
-  }
-
-  static int _dailyTarget(int goalDays) {
-    final d = goalDays <= 0 ? 30 : goalDays;
-    final target = (totalAyat / d).ceil();
-    return target < 1 ? 1 : target;
-  }
-
+  /// =======================
+  /// Progress
+  /// =======================
   static Future<void> saveProgress({
     required int surah,
     required int verse,
   }) async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
 
-    final now = DateTime.now();
-    final today = _dateKey(now);
+    final today = _dateKey(DateTime.now());
 
     final newGlobal = _globalAyahIndex(surah, verse);
     final prevGlobal = p.getInt(_kLastGlobal) ?? 1;
 
+    // لا نرجّع التقدم للخلف
+    if (newGlobal < prevGlobal) return;
+
     final savedToday = p.getString(_kTodayKey);
     int todayRead = p.getInt(_kTodayRead) ?? 0;
+
     if (savedToday != today) {
       todayRead = 0;
       await p.setString(_kTodayKey, today);
     }
 
-    final diff = (newGlobal > prevGlobal) ? (newGlobal - prevGlobal) : 0;
-    todayRead += diff;
+    todayRead += (newGlobal - prevGlobal);
 
     await p.setInt(_kTodayRead, todayRead);
     await p.setInt(_kLastSurah, surah);
@@ -104,12 +125,11 @@ class ReadingProgressService {
   }
 
   static Future<ReadingStatus> getStatus() async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
 
     final goalDays = p.getInt(_kGoalDays) ?? 30;
-    final startStr = p.getString(_kStartDate) ?? _dateKey(DateTime.now());
-    final start = DateTime.tryParse(startStr) ?? DateTime.now();
+    final startStr = p.getString(_kStartDate)!;
+    final startDate = DateTime.tryParse(startStr) ?? DateTime.now();
 
     final lastSurah = p.getInt(_kLastSurah);
     final lastVerse = p.getInt(_kLastVerse);
@@ -126,7 +146,7 @@ class ReadingProgressService {
 
     return ReadingStatus(
       goalDays: goalDays,
-      startDate: start,
+      startDate: startDate,
       lastSurah: lastSurah,
       lastVerse: lastVerse,
       lastGlobalIndex: lastGlobal,
@@ -136,15 +156,18 @@ class ReadingProgressService {
     );
   }
 
+  /// =======================
+  /// Settings
+  /// =======================
   static Future<void> setGoalDays(int days) async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     await p.setInt(_kGoalDays, days.clamp(1, 365));
   }
 
   static Future<void> resetKhatma() async {
-    final p = await SharedPreferences.getInstance();
+    final p = await _prefs();
     final now = DateTime.now();
+
     await p.setString(_kStartDate, _dateKey(now));
     await p.remove(_kLastSurah);
     await p.remove(_kLastVerse);
@@ -153,39 +176,36 @@ class ReadingProgressService {
     await p.setInt(_kTodayRead, 0);
   }
 
+  /// =======================
+  /// Reminder
+  /// =======================
   static Future<bool> getReminderEnabled() async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     return p.getBool(_kReminderEnabled) ?? true;
   }
 
-  static Future<String> getReminderTimeHHMM() async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
-    return p.getString(_kReminderHHMM) ?? '21:00';
-  }
-
   static Future<void> setReminderEnabled(bool enabled) async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     await p.setBool(_kReminderEnabled, enabled);
   }
 
+  static Future<String> getReminderTimeHHMM() async {
+    final p = await _prefs();
+    return p.getString(_kReminderHHMM) ?? '21:00';
+  }
+
   static Future<void> setReminderTimeHHMM(String hhmm) async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     await p.setString(_kReminderHHMM, hhmm);
   }
 
   static Future<String> getReminderLastShownDate() async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     return p.getString(_kReminderLastShown) ?? '';
   }
 
   static Future<void> setReminderLastShownDate(String dayKey) async {
-    final p = await SharedPreferences.getInstance();
-    await ensureInitialized();
+    final p = await _prefs();
     await p.setString(_kReminderLastShown, dayKey);
   }
 }

@@ -55,8 +55,8 @@ class _QuranHomePageState extends State<QuranHomePage> {
     loadData();
     updateDateTime();
 
-    ReadingProgressService.ensureInitialized().then((_) => _initKhatma());
-
+    // ReadingProgressService.ensureInitialized().then((_) => _initKhatma());
+    _initKhatma();
     timer = Timer.periodic(const Duration(seconds: 1), (_) => updateTimeOnly());
 
     _loadAdaptiveBannerAfterLayout();
@@ -79,7 +79,7 @@ class _QuranHomePageState extends State<QuranHomePage> {
       if (adaptiveSize == null) return;
 
       _bannerAd = BannerAd(
-        adUnitId: 'ca-app-pub-4905760497560017/8482351944',
+        adUnitId: 'ca-app-pub-5228897328353749/5750352175',
         // adUnitId: 'ca-app-pub-3940256099942544/2435281174',
         size: adaptiveSize,
         request: const AdRequest(),
@@ -583,10 +583,16 @@ class _QuranHomePageState extends State<QuranHomePage> {
                   ),
                 ),
                 if (_bannerAd != null)
-                  SizedBox(
-                    width: double.infinity,
-                    height: _bannerAd!.size.height.toDouble(),
-                    child: AdWidget(ad: _bannerAd!),
+                  SafeArea(
+                    top: false,
+                    child: Align(
+                      alignment: Alignment.center,
+                      child: SizedBox(
+                        width: _bannerAd!.size.width.toDouble(),
+                        height: _bannerAd!.size.height.toDouble(),
+                        child: AdWidget(ad: _bannerAd!),
+                      ),
+                    ),
                   ),
               ],
             ),
